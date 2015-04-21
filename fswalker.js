@@ -58,10 +58,20 @@ TODO: Move to subclass.
         ignoreRules[scope][key] = [];
     }
     var re = new RegExp(ESCAPE_REGEXP(rule).replace(/\\\*/g, "[^\\/]*?"));
+
+    if (
+        scope === "top" &&
+        ignoreRules["include"][key]
+    ) {
+        // Remove previous include rule as exclude rule loaded later supercedes.
+        delete ignoreRules["include"][key];
+    }
+
     ignoreRules[scope][key].push(function applyRule(path) {
         if (path === rule || re.test(path)) return true;
         return false;
     });
+
     this._stats.ignoreRulesCount += 1;
 }
 
@@ -104,15 +114,22 @@ exports.Walker.prototype._loadIgnoreRules = function(ignoreRules, subPath, optio
 	var self = this;
 	var ignoreFiles = [];
 
-    if (options.respectDistignore) {
-    	ignoreFiles.push(".distignore");
+    if (subPath !== "" && options.respectNestedIgnore !== true) {
+        return;
     }
-    // NOTE: We want to ignore nested ignore files when exporting as we may have generated
-    //       files we want as part of export, but ignore otherwise.
-    if (subPath === "" || options.respectNestedIgnore !== false) {
-	    ignoreFiles.push(".npmignore");
-	    ignoreFiles.push(".gitignore");
-	}
+
+    if (options.respectDistignore) {
+        if (FS.existsSync(PATH.join(self._rootPath, subPath, ".distignore"))) {
+            ignoreFiles.push(".distignore");
+        } else
+        if (FS.existsSync(PATH.join(self._rootPath, subPath, ".npmignore"))) {
+            ignoreFiles.push(".npmignore");
+        }
+    }
+    if (ignoreFiles.length === 0) {
+        ignoreFiles.push(".gitignore");
+    }
+
 	var found = false;
     ignoreFiles.forEach(function(basename) {
         if (found) return;
@@ -375,6 +392,13 @@ exports.Walker.prototype.walk = function(options, callback) {
 
     try {
 	    self._loadIgnoreRules(self._ignoreRules, "", options);
+
+        if (options.ignore) {
+            options.ignore.forEach(function (rule) {
+                self._insertIgnoreRule(self._ignoreRules, rule, "", options);
+            });
+        }
+
 	} catch(err) {
 		return callback(err);
 	}
