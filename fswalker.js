@@ -300,7 +300,7 @@ exports.Walker.prototype.walk = function(options, callback) {
                                         size: stat.size,
                                         dir: linkStat.isDirectory() || false,
                                         symlink: val,
-                                        symlinkReal: linkDir
+                                        symlinkReal: "/" + PATH.relative(self._rootPath, linkDir)
                                     };
                                     if (options.excludeMtime) {
                                         delete list[subPath + "/" + basename].mtime;
