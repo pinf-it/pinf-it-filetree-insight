@@ -1,7 +1,7 @@
 {
   "uid": "github.com/pinf-it/pinf-it-filetree-insight",
   "name": "pinf-it-filetree-insight",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "main": "plugin.js",
   "config": {
     "pio.deploy.converter": {
