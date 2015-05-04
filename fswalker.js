@@ -80,18 +80,24 @@ exports.Walker.prototype._loadIgnoreRulesFile = function(ignoreRules, path, subP
     if (!FS.existsSync(path)) return false;
 
     function readRulesFromFile (path) {
-        FS.readFileSync(path).toString().split("\n").forEach(function(rule) {
-            if (!rule) return;
-            if (/^#/.test(rule)) return;
-            if (/^@import\s+\S+$/.test(rule)) {
-                var uri = rule.match(/^@import\s+(.+)$/)[1];
-                self._insertIgnoreRule(ignoreRules, "/" + uri, subPath, options);
-                readRulesFromFile(PATH.join(path, "..", uri));
-            } else {
-                self._insertIgnoreRule(ignoreRules, rule, subPath, options);
+        try {
+            FS.readFileSync(path).toString().split("\n").forEach(function(rule) {
+                if (!rule) return;
+                if (/^#/.test(rule)) return;
+                if (/^@import\s+\S+$/.test(rule)) {
+                    var uri = rule.match(/^@import\s+(.+)$/)[1];
+                    self._insertIgnoreRule(ignoreRules, "/" + uri, subPath, options);
+                    readRulesFromFile(PATH.join(path, "..", uri));
+                } else {
+                    self._insertIgnoreRule(ignoreRules, rule, subPath, options);
+                }
+            });
+        } catch (err) {
+            if (err.code === "ENOENT") {
+                return;
             }
-        });
-
+            throw err;
+        }
     }
 
     readRulesFromFile(path);
