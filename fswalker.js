@@ -168,7 +168,22 @@ exports.Walker.prototype._loadIgnoreRules = function(ignoreRules, subPath, optio
     }
 }
 
-exports.Walker.prototype.walk = function(options, callback) {
+var sortedRuleGroupsCache = {};
+function getSortedRuleGroups (ruleGroups) {
+    var keys = Object.keys(ruleGroups);
+    var key = keys.join(":");
+    if (sortedRuleGroupsCache[key]) {
+        return sortedRuleGroupsCache[key];
+    }
+    // @see http://stackoverflow.com/a/10630852/330439
+    keys.sort(function(a, b){
+        // ASC -> a - b; DESC -> b - a
+        return b.length - a.length;
+    });
+    return (sortedRuleGroupsCache[key] = keys);
+}
+
+exports.Walker.prototype.walk = function (options, callback) {
 	var self = this;
 
 	var traversedSymlink = {};
@@ -227,17 +242,19 @@ exports.Walker.prototype.walk = function(options, callback) {
                 }
 
                 function ignore(type) {
+
                     function select(ruleGroups, path) {
                         var rules = null;
                         if (ruleGroups[path]) {
                             rules = ruleGroups[path];
                         } else {
-                            for (var prefix in ruleGroups) {
+                            var found = false;
+                            getSortedRuleGroups(ruleGroups).forEach(function (prefix) {
+                                if (rules) return;
                                 if (path.substring(0, prefix.length) === prefix) {
                                     rules = ruleGroups[prefix];
-                                    break;
                                 }
-                            }
+                            });
                         }
                         if (!rules && ruleGroups[""]) {
                             rules = ruleGroups[""];
@@ -251,14 +268,34 @@ exports.Walker.prototype.walk = function(options, callback) {
                             return false;
                         }
                     }
-                    if (select(ignoreRules.include, subPath + "/" + basename + ((type === "dir") ? "/" : ""))) {
-                        return false;
+                    if (type === "dir") {
+                        if (select(ignoreRules.include, subPath + "/" + basename + "/")) {
+                            return false;
+                        }
+                        if (select(ignoreRules.include, subPath + "/" + basename)) {
+                            return false;
+                        }
+                        if (select(ignoreRules.top, subPath + "/" + basename + "/")) {
+                            return true;
+                        }
+                        if (select(ignoreRules.top, subPath + "/" + basename)) {
+                            return true;
+                        }
+                        // All deeper nodes.
+                        if (select(ignoreRules.every, basename)) {
+                            return true;
+                        }
+                        return select(ignoreRules.every, basename + "/");
+                    } else {
+                        if (select(ignoreRules.include, subPath + "/" + basename)) {
+                            return false;
+                        }
+                        if (select(ignoreRules.top, subPath + "/" + basename)) {
+                            return true;
+                        }
+                        // All deeper nodes.
+                        return select(ignoreRules.every, basename);
                     }
-                    if (select(ignoreRules.top, subPath + "/" + basename + ((type === "dir") ? "/" : ""))) {
-                        return true;
-                    }
-                    // All deeper nodes.
-                    return select(ignoreRules.every, basename + ((type === "dir") ? "/" : ""));
                 }
                 c += 1;
                 FS.lstat(PATH.join(self._rootPath, subPath, basename), function(err, stat) {
